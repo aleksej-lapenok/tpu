@@ -85,8 +85,8 @@ def focal_loss(
     # Therefore one unified form for positive (z = 1) and negative (z = 0)
     # samples is:
     #      (1 - p_t)^r = exp(-r * z * x - r * log(1 + exp(-x))).
-    p = tf.sigmoid(targets)
-    p_t = p * logits + (1 - p) * (1 - logits)
+    p = tf.sigmoid(logits)
+    p_t = targets * p + (1 - logits) * (1 - targets)
     modulator = tf.pow(tf.exp(0.5 * focal_s) * tf.pow((1 - p_t), tf.exp(-focal_s)), gamma)
     # neg_logits = -1.0 * logits
     # modulator = tf.exp(gamma * targets * neg_logits -

@@ -4,6 +4,7 @@
 architecture:
   backbone: 'spinenet'
   multilevel_features: 'identity'
+enable_summary: true
 train:
   total_steps: 231500
   train_batch_size: 256

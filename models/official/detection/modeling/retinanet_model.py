@@ -105,6 +105,12 @@ class RetinanetModel(base_model.BaseModel):
     # cause numerical instability, e.g. large image size or sparse objects.
     # Using a moving average to smooth the normalizer improves the training
     # stability.
+    self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+                               initial_value=0.0,
+                               trainable=True)
+    self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+                                   initial_value=1.0,
+                                   trainable=True)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
       moving_normalizer_var = tf.Variable(
@@ -124,15 +130,18 @@ class RetinanetModel(base_model.BaseModel):
       self.add_scalar_summary('moving_normalizer', normalizer)
     else:
       normalizer = num_positives_sum
+    self.add_scalar_summary('focal_s', self.focal_s)
+    self.add_scalar_summary('smooth_l1_s', self.smooth_l1_s)
 
     cls_loss = self._cls_loss_fn(
         outputs['cls_outputs'],
         labels['cls_targets'],
         normalizer,
+        self.focal_s,
     )
 
     box_loss = self._box_loss_fn(
-        outputs['box_outputs'], labels['box_targets'], normalizer)
+        outputs['box_outputs'], labels['box_targets'], normalizer, self.smooth_l1_s)
     model_loss = cls_loss + self._box_loss_weight * box_loss
 
     self.add_scalar_summary('cls_loss', cls_loss)

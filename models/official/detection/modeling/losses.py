@@ -19,14 +19,18 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow.compat.v1 as tf
+from tensorflow.python.framework import dtypes
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import math_ops
 
 
 def focal_loss(
-    logits,
-    targets,
-    alpha,
-    gamma,
-    normalizer,
+        logits,
+        targets,
+        alpha,
+        gamma,
+        normalizer,
+        focal_s,
 ):
   """Compute the focal loss between `logits` and the golden `target` values.
 
@@ -50,7 +54,8 @@ def focal_loss(
   with tf.name_scope('focal_loss'):
     positive_label_mask = tf.equal(targets, 1.0)
     cross_entropy = (
-        tf.nn.sigmoid_cross_entropy_with_logits(labels=targets, logits=logits))
+                        tf.nn.sigmoid_cross_entropy_with_logits(labels=targets, logits=logits)) * tf.exp(
+        -focal_s) + focal_s / 2
     # Below are comments/derivations for computing modulator.
     # For brevity, let x = logits,  z = targets, r = gamma, and p_t = sigmod(x)
     # for positive samples and 1 - sigmoid(x) for negative examples.
@@ -80,9 +85,12 @@ def focal_loss(
     # Therefore one unified form for positive (z = 1) and negative (z = 0)
     # samples is:
     #      (1 - p_t)^r = exp(-r * z * x - r * log(1 + exp(-x))).
-    neg_logits = -1.0 * logits
-    modulator = tf.exp(gamma * targets * neg_logits -
-                       gamma * tf.math.softplus(neg_logits))
+    p = tf.sigmoid(targets)
+    p_t = p * logits + (1 - p) * (1 - logits)
+    modulator = tf.pow(tf.exp(0.5 * focal_s) * tf.pow((1 - p_t), tf.exp(-focal_s)), gamma)
+    # neg_logits = -1.0 * logits
+    # modulator = tf.exp(gamma * targets * neg_logits -
+    #                    gamma * tf.math.softplus(neg_logits))
     loss = modulator * cross_entropy
     weighted_loss = tf.where(positive_label_mask, alpha * loss,
                              (1.0 - alpha) * loss)
@@ -368,6 +376,7 @@ class RetinanetClassLoss(object):
       cls_outputs,
       labels,
       num_positives,
+      focal_s,
   ):
     """Computes total detection loss.
 
@@ -395,6 +404,7 @@ class RetinanetClassLoss(object):
               cls_outputs[level],
               labels[level],
               num_positives_sum,
+              focal_s
           ))
     # Sums per level losses to total loss.
     return tf.add_n(cls_losses)
@@ -404,6 +414,7 @@ class RetinanetClassLoss(object):
       cls_outputs,
       cls_targets,
       num_positives,
+      focal_s,
       ignore_label=-2,
   ):
     """Computes RetinaNet classification loss."""
@@ -419,6 +430,7 @@ class RetinanetClassLoss(object):
         self._focal_loss_alpha,
         self._focal_loss_gamma,
         num_positives,
+        focal_s
     )
 
     ignore_loss = tf.where(tf.equal(cls_targets, ignore_label),
@@ -436,7 +448,7 @@ class RetinanetBoxLoss(object):
   def __init__(self, params):
     self._huber_loss_delta = params.huber_loss_delta
 
-  def __call__(self, box_outputs, labels, num_positives):
+  def __call__(self, box_outputs, labels, num_positives, smooth_l1_s):
     """Computes box detection loss.
 
     Computes total detection loss including box and class loss from all levels.
@@ -461,25 +473,99 @@ class RetinanetBoxLoss(object):
       # Onehot encoding for classification labels.
       box_targets_l = labels[level]
       box_losses.append(
-          self.box_loss(box_outputs[level], box_targets_l, num_positives_sum))
+          self.box_loss(box_outputs[level], box_targets_l, num_positives_sum, smooth_l1_s))
     # Sums per level losses to total loss.
     return tf.add_n(box_losses)
 
-  def box_loss(self, box_outputs, box_targets, num_positives):
+  def box_loss(self, box_outputs, box_targets, num_positives, smooth_l1_s):
     """Computes RetinaNet box regression loss."""
     # The delta is typically around the mean value of regression target.
     # for instances, the regression targets of 512x512 input with 6 anchors on
     # P3-P7 pyramid is about [0.1, 0.1, 0.2, 0.2].
     normalizer = num_positives * 4.0
     mask = tf.not_equal(box_targets, 0.0)
-    box_loss = tf.losses.huber_loss(
+    # tensorflow.losses.
+    # box_loss = tf.losses.huber_loss(
+    #     box_targets,
+    #     box_outputs,
+    #     weights=mask,
+    #     delta=self._huber_loss_delta,
+    #     reduction=tf.losses.Reduction.SUM)
+    box_loss = self._huber_loss(
         box_targets,
         box_outputs,
+        smooth_l1_s,
         weights=mask,
         delta=self._huber_loss_delta,
-        reduction=tf.losses.Reduction.SUM)
+        reduction=tf.losses.Reduction.SUM
+    )
     box_loss /= normalizer + 1e-20
     return box_loss
+
+  def _huber_loss(self, labels, predictions, smooth_l1_s, weights=1.0, delta=1.0, scope=None,
+                  loss_collection=ops.GraphKeys.LOSSES,
+                  reduction=tf.losses.Reduction.SUM_BY_NONZERO_WEIGHTS):
+      with ops.name_scope(scope, "huber_loss",
+                          (predictions, labels, weights)) as scope:
+          predictions = math_ops.cast(predictions, dtype=dtypes.float32)
+
+          labels = math_ops.cast(labels, dtype=dtypes.float32)
+          predictions.get_shape().assert_is_compatible_with(labels.get_shape())
+
+          error = math_ops.subtract(predictions, labels)
+
+          abs_error = math_ops.abs(error)  # |x|
+          quadratic = math_ops.minimum(abs_error, delta)  # min(|x|, betta)
+
+          linear = math_ops.subtract(abs_error, quadratic)  # |x|-min(|x|, beta)
+
+          factor = math_ops.multiply(0.25, math_ops.exp(smooth_l1_s))#1/(4*exp(s))
+
+          alpha = math_ops.log(#log(1 - erf(beta/sqrt(2*exp(s))))
+              math_ops.subtract(1.0,
+                                math_ops.erf(
+                                    math_ops.divide(
+                                        delta,
+                                        math_ops.sqrt(
+                                            math_ops.multiply(
+                                                2.0,
+                                                math_ops.exp(smooth_l1_s)
+                                            )
+                                        )
+                                    )
+                                ))
+          )
+
+          losses = tf.where(abs_error < delta,
+                            math_ops.add(
+                                math_ops.multiply(factor, math_ops.multiply(abs_error, abs_error)),
+                                math_ops.multiply(0.5, smooth_l1_s)
+                            ),#factor*|x|^2+0.5s
+
+                            math_ops.add(#-1/beta*alpha|x| + alpha + factor*beta + 0.5*s
+                                math_ops.add(
+                                    math_ops.add(
+                                        math_ops.multiply(
+                                            math_ops.divide(-1, delta),
+                                            math_ops.multiply(alpha, abs_error)
+                                        ),
+                                        alpha
+                                    ),
+                                    math_ops.multiply(factor, delta)
+                                ),
+                                math_ops.multiply(0.5, smooth_l1_s)
+                            ))
+
+          # losses = math_ops.add(  # 0.5*min(|x|, betta)^2+(|x|-min(|x|,beta))*beta
+          #     # |x|>beta -> 0.5betta^2+(|x|-beta)*beta
+          #     # |x|< beta -> 0.5*|x|^2+(|x|-|x|)*beta=0.5|x|^2
+          #     math_ops.multiply(
+          #         ops.convert_to_tensor(0.5, dtype=quadratic.dtype),
+          #         math_ops.multiply(quadratic, quadratic)),
+          #     math_ops.multiply(delta, linear))
+
+          return tf.losses.compute_weighted_loss(
+              losses, weights, scope, loss_collection, reduction=reduction)
 
 
 class ShapemaskMseLoss(object):

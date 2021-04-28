@@ -55,7 +55,7 @@ def focal_loss(
     positive_label_mask = tf.equal(targets, 1.0)
     cross_entropy = (
                         tf.nn.sigmoid_cross_entropy_with_logits(labels=targets, logits=logits)) * tf.exp(
-        -focal_s) + focal_s / 2 #s/2-log(p_t)
+        -focal_s) + focal_s / 2 #s/2-log(p_t)*e^-s
     # Below are comments/derivations for computing modulator.
     # For brevity, let x = logits,  z = targets, r = gamma, and p_t = sigmod(x)
     # for positive samples and 1 - sigmoid(x) for negative examples.
@@ -87,7 +87,9 @@ def focal_loss(
     #      (1 - p_t)^r = exp(-r * z * x - r * log(1 + exp(-x))).
     p = tf.sigmoid(logits)
     p_t = targets * p + (1 - logits) * (1 - targets)
-    modulator = tf.pow(1 - tf.exp(-0.5 * focal_s) * tf.pow(p_t, tf.exp(-focal_s)), gamma)  # 1-e^-0.5s*p_t^(e^-s))^gamma
+    modulator = tf.pow(
+        tf.exp(0.5 * focal_s) * tf.pow(1 - p_t, tf.exp(-focal_s)),
+        gamma)  # (e^0.5s*(1-p_t)^(e^-s))^gamma
     # neg_logits = -1.0 * logits
     # modulator = tf.exp(gamma * targets * neg_logits -
     #                    gamma * tf.math.softplus(neg_logits))

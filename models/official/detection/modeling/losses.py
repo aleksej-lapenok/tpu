@@ -546,7 +546,7 @@ class RetinanetBoxLoss(object):
                                 math_ops.add(
                                     math_ops.add(
                                         math_ops.multiply(
-                                            math_ops.divide(-1, delta),
+                                            math_ops.divide(-1.0, delta),
                                             math_ops.multiply(alpha, abs_error)
                                         ),
                                         alpha

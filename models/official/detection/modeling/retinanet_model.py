@@ -105,12 +105,14 @@ class RetinanetModel(base_model.BaseModel):
     # cause numerical instability, e.g. large image size or sparse objects.
     # Using a moving average to smooth the normalizer improves the training
     # stability.
-    self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
-                               initial_value=0.0,
-                               trainable=True)
-    self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
-                                   initial_value=1.0,
+    if not self.focal_s:
+        self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+                                   initial_value=0.0,
                                    trainable=True)
+    if not self.smooth_l1_s:
+        self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+                                       initial_value=1.0,
+                                       trainable=True)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
       moving_normalizer_var = tf.Variable(
@@ -154,6 +156,14 @@ class RetinanetModel(base_model.BaseModel):
     raise NotImplementedError('The build_metrics is not implemented.')
 
   def build_predictions(self, outputs, labels):
+    if not self.focal_s:
+        self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+                                  initial_value=0.0,
+                                  trainable=True)
+    if not self.smooth_l1_s:
+        self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+                                     initial_value=1.0,
+                                     trainable=True)
     predictions = {
         'pred_image_info': labels['image_info'],
         'pred_num_detections': outputs['num_detections'],
@@ -178,10 +188,10 @@ class RetinanetModel(base_model.BaseModel):
       # Computes model loss for logging.
       cls_loss = self._cls_loss_fn(
           outputs['cls_outputs'], labels['cls_targets'],
-          labels['num_positives'])
+          labels['num_positives'], self.focal_s)
       box_loss = self._box_loss_fn(
           outputs['box_outputs'], labels['box_targets'],
-          labels['num_positives'])
+          labels['num_positives'], self.smooth_l1_s)
       model_loss = cls_loss + self._box_loss_weight * box_loss
 
       # Tiles the loss from [1] to [batch_size] since Estimator requires all

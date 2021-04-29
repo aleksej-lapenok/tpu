@@ -15,6 +15,10 @@ train:
     learning_rate_steps: [217610, 226870]
   l2_weight_decay: 0.00004
   gradient_clip_norm: 10.0
+  train_file_pattern: gs://efficient-net2/coco/train-*
+eval:
+  val_json_file: gs://efficient-net2/coco/instances_val2017.json
+  eval_file_pattern: gs://efficient-net2/coco/test-*
 batch_norm_activation:
   use_sync_bn: true
   activation: 'swish'

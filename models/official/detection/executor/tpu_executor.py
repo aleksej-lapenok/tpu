@@ -227,12 +227,12 @@ class TpuExecutor(object):
       metrics = self._evaluator.evaluate()
 
       # Summary writer writes out eval metrics.
-      output_dir = os.path.join(self._model_dir, 'eval')
-      tf.gfile.MakeDirs(output_dir)
-      summary_writer = tf.summary.FileWriter(output_dir)
-      write_summary(metrics, summary_writer, current_step)
-      write_summary(losses, summary_writer, current_step)
-      summary_writer.close()
+      # output_dir = os.path.join(self._model_dir, 'eval')
+      # tf.gfile.MakeDirs(output_dir)
+      # summary_writer = tf.summary.FileWriter(output_dir)
+      # write_summary(metrics, summary_writer, current_step)
+      # write_summary(losses, summary_writer, current_step)
+      # summary_writer.close()
 
     logging.info('Eval result: %s', metrics)
     return metrics

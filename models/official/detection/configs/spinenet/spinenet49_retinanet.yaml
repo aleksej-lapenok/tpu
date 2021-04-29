@@ -7,10 +7,10 @@ architecture:
 enable_summary: true
 train:
   total_steps: 231500
-  train_batch_size: 256
+  train_batch_size: 128
   learning_rate:
     warmup_steps: 2000
-    init_learning_rate: 0.28
+    init_learning_rate: 0.0014
     learning_rate_levels: [0.028, 0.0028]
     learning_rate_steps: [217610, 226870]
   l2_weight_decay: 0.00004

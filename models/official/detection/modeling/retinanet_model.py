@@ -50,8 +50,8 @@ class RetinanetModel(base_model.BaseModel):
     self._box_loss_weight = params.retinanet_loss.box_loss_weight
     self._focal_loss_normalizer_momentum = (
         params.retinanet_loss.normalizer_momentum)
-    self.focal_s = None
-    self.smooth_l1_s = None
+    self.focal_s = 0.0
+    self.smooth_l1_s = 0.0
 
     # Predict function.
     self._generate_detections_fn = postprocess_ops.MultilevelDetectionGenerator(
@@ -107,14 +107,13 @@ class RetinanetModel(base_model.BaseModel):
     # cause numerical instability, e.g. large image size or sparse objects.
     # Using a moving average to smooth the normalizer improves the training
     # stability.
-    if not self.focal_s:
-        self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
-                                   initial_value=0.0,
+    self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+                               initial_value=0.0,
+                               trainable=True)
+
+    self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+                                   initial_value=1.0,
                                    trainable=True)
-    if not self.smooth_l1_s:
-        self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
-                                       initial_value=1.0,
-                                       trainable=True)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
       moving_normalizer_var = tf.Variable(
@@ -158,14 +157,6 @@ class RetinanetModel(base_model.BaseModel):
     raise NotImplementedError('The build_metrics is not implemented.')
 
   def build_predictions(self, outputs, labels):
-    if not self.focal_s:
-        self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
-                                  initial_value=0.0,
-                                  trainable=True)
-    if not self.smooth_l1_s:
-        self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
-                                     initial_value=1.0,
-                                     trainable=True)
     predictions = {
         'pred_image_info': labels['image_info'],
         'pred_num_detections': outputs['num_detections'],

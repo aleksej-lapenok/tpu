@@ -50,6 +50,8 @@ class RetinanetModel(base_model.BaseModel):
     self._box_loss_weight = params.retinanet_loss.box_loss_weight
     self._focal_loss_normalizer_momentum = (
         params.retinanet_loss.normalizer_momentum)
+    self.focal_s = None
+    self.smooth_l1_s = None
 
     # Predict function.
     self._generate_detections_fn = postprocess_ops.MultilevelDetectionGenerator(

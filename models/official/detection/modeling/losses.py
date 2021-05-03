@@ -515,11 +515,8 @@ class RetinanetBoxLoss(object):
           error = math_ops.subtract(predictions, labels)
 
           abs_error = math_ops.abs(error)  # |x|
-          quadratic = math_ops.minimum(abs_error, delta)  # min(|x|, betta)
 
-          linear = math_ops.subtract(abs_error, quadratic)  # |x|-min(|x|, beta)
-
-          factor = math_ops.multiply(0.25, math_ops.exp(smooth_l1_s))#1/(4*exp(s))
+          factor = math_ops.multiply(0.5, math_ops.exp(-smooth_l1_s))#1/(2*exp(s))
 
           alpha = math_ops.log(#log(1 - erf(beta/sqrt(2*exp(s))))
               math_ops.subtract(1.0,
@@ -542,7 +539,7 @@ class RetinanetBoxLoss(object):
                                 math_ops.multiply(0.5, smooth_l1_s)
                             ),#factor*|x|^2+0.5s
 
-                            math_ops.add(#-1/beta*alpha|x| + alpha + factor*beta + 0.5*s
+                            math_ops.add(#-1/beta*alpha|x| + alpha + factor*beta^2 + 0.5*s
                                 math_ops.add(
                                     math_ops.add(
                                         math_ops.multiply(
@@ -551,7 +548,7 @@ class RetinanetBoxLoss(object):
                                         ),
                                         alpha
                                     ),
-                                    math_ops.multiply(factor, delta)
+                                    math_ops.multiply(factor, math_ops.multiply(delta, delta))
                                 ),
                                 math_ops.multiply(0.5, smooth_l1_s)
                             ))

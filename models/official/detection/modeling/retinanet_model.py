@@ -112,8 +112,8 @@ class RetinanetModel(base_model.BaseModel):
                                trainable=False)
 
     self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
-                                   initial_value=1.0,
-                                   trainable=True)
+                                   initial_value=-5.3,
+                                   trainable=False)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
       moving_normalizer_var = tf.Variable(

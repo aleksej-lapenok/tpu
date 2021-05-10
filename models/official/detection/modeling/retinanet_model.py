@@ -50,8 +50,6 @@ class RetinanetModel(base_model.BaseModel):
     self._box_loss_weight = params.retinanet_loss.box_loss_weight
     self._focal_loss_normalizer_momentum = (
         params.retinanet_loss.normalizer_momentum)
-    self.focal_s = 0.0
-    self.smooth_l1_s = 0.0
 
     # Predict function.
     self._generate_detections_fn = postprocess_ops.MultilevelDetectionGenerator(
@@ -107,11 +105,11 @@ class RetinanetModel(base_model.BaseModel):
     # cause numerical instability, e.g. large image size or sparse objects.
     # Using a moving average to smooth the normalizer improves the training
     # stability.
-    self.focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+    focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
                                initial_value=-0.4599,
                                trainable=False)
 
-    self.smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+    smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
                                    initial_value=-5.3,
                                    trainable=False)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
@@ -140,11 +138,11 @@ class RetinanetModel(base_model.BaseModel):
         outputs['cls_outputs'],
         labels['cls_targets'],
         normalizer,
-        self.focal_s,
+        focal_s,
     )
 
     box_loss = self._box_loss_fn(
-        outputs['box_outputs'], labels['box_targets'], normalizer, self.smooth_l1_s)
+        outputs['box_outputs'], labels['box_targets'], normalizer, smooth_l1_s)
     model_loss = cls_loss + self._box_loss_weight * box_loss
 
     self.add_scalar_summary('cls_loss', cls_loss)
@@ -179,12 +177,20 @@ class RetinanetModel(base_model.BaseModel):
       predictions['gt_is_crowds'] = labels['groundtruths']['is_crowds']
 
       # Computes model loss for logging.
+      focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
+                            initial_value=0.0,
+                            trainable=False)
+
+      smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
+                              initial_value=0.0,
+                              trainable=False)
+
       cls_loss = self._cls_loss_fn(
           outputs['cls_outputs'], labels['cls_targets'],
-          labels['num_positives'], self.focal_s)
+          labels['num_positives'], focal_s)
       box_loss = self._box_loss_fn(
           outputs['box_outputs'], labels['box_targets'],
-          labels['num_positives'], self.smooth_l1_s)
+          labels['num_positives'], smooth_l1_s)
       model_loss = cls_loss + self._box_loss_weight * box_loss
 
       # Tiles the loss from [1] to [batch_size] since Estimator requires all

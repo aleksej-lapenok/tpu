@@ -110,7 +110,7 @@ class RetinanetModel(base_model.BaseModel):
                                trainable=True)
 
     smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
-                                   initial_value=-3.75,
+                                   initial_value=-5.45,
                                    trainable=True)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
@@ -139,10 +139,10 @@ class RetinanetModel(base_model.BaseModel):
         labels['cls_targets'],
         normalizer,
         focal_s,
-    )
+    ) + 30.0
 
     box_loss = self._box_loss_fn(
-        outputs['box_outputs'], labels['box_targets'], normalizer, smooth_l1_s)
+        outputs['box_outputs'], labels['box_targets'], normalizer, smooth_l1_s) + 4.0
     model_loss = cls_loss + self._box_loss_weight * box_loss
 
     self.add_scalar_summary('cls_loss', cls_loss)

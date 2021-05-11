@@ -106,12 +106,12 @@ class RetinanetModel(base_model.BaseModel):
     # Using a moving average to smooth the normalizer improves the training
     # stability.
     focal_s = tf.Variable(dtype=tf.float32, name='focal_s',
-                               initial_value=-0.4599,
-                               trainable=False)
+                               initial_value=-0.46,
+                               trainable=True)
 
     smooth_l1_s = tf.Variable(dtype=tf.float32, name='smooth_l1_s',
                                    initial_value=-5.3,
-                                   trainable=False)
+                                   trainable=True)
     num_positives_sum = tf.reduce_sum(labels['num_positives'])
     if self._focal_loss_normalizer_momentum > 0.0:
       moving_normalizer_var = tf.Variable(

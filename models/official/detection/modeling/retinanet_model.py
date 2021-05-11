@@ -131,8 +131,8 @@ class RetinanetModel(base_model.BaseModel):
       self.add_scalar_summary('moving_normalizer', normalizer)
     else:
       normalizer = num_positives_sum
-    self.add_scalar_summary('focal_s', self.focal_s)
-    self.add_scalar_summary('smooth_l1_s', self.smooth_l1_s)
+    self.add_scalar_summary('focal_s', focal_s)
+    self.add_scalar_summary('smooth_l1_s', smooth_l1_s)
 
     cls_loss = self._cls_loss_fn(
         outputs['cls_outputs'],

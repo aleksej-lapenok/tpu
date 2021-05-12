@@ -141,10 +141,10 @@ class RetinanetModel(base_model.BaseModel):
         labels['cls_targets'],
         normalizer,
         self.focal_s,
-    ) + 30.0
+    ) + 34.0
 
     box_loss = self._box_loss_fn(
-        outputs['box_outputs'], labels['box_targets'], normalizer, self.smooth_l1_s) + 5.0
+        outputs['box_outputs'], labels['box_targets'], normalizer, self.smooth_l1_s) + 3.0
     model_loss = cls_loss + self._box_loss_weight * box_loss
 
     self.add_scalar_summary('cls_loss', cls_loss)

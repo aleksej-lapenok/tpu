@@ -53,9 +53,9 @@ def focal_loss(
   """
   with tf.name_scope('focal_loss'):
     positive_label_mask = tf.equal(targets, 1.0)
-    cross_entropy = (
-                        tf.nn.sigmoid_cross_entropy_with_logits(labels=targets, logits=logits)) * tf.exp(
-        -focal_s) + focal_s / 2 #s/2-log(p_t)*e^-s
+    cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=targets, logits=logits)
+    cross_entropy_new = cross_entropy * tf.exp(-focal_s) + focal_s / 2
+    #s/2-log(p_t)*e^-s
     # Below are comments/derivations for computing modulator.
     # For brevity, let x = logits,  z = targets, r = gamma, and p_t = sigmod(x)
     # for positive samples and 1 - sigmoid(x) for negative examples.
@@ -88,14 +88,18 @@ def focal_loss(
     p = tf.sigmoid(logits)
     p_t = targets * p + (1 - p) * (1 - targets)
     modulator = tf.pow(tf.exp(-0.5 * focal_s) * tf.pow(1 - p_t, tf.exp(-focal_s)), gamma)  # (e^-0.5s*(1-p_t)^(e^-s))^gamma
-    # neg_logits = -1.0 * logits
-    # modulator = tf.exp(gamma * targets * neg_logits -
-    #                    gamma * tf.math.softplus(neg_logits))
-    loss = modulator * cross_entropy
+    neg_logits = -1.0 * logits
+    modulator_focal_loss = tf.exp(gamma * targets * neg_logits -
+                       gamma * tf.math.softplus(neg_logits))
+    loss = modulator * cross_entropy_new
+    focal_loss = modulator_focal_loss * cross_entropy
     weighted_loss = tf.where(positive_label_mask, alpha * loss,
                              (1.0 - alpha) * loss)
+    weighted_focal_loss = tf.where(positive_label_mask, alpha * focal_loss,
+                             (1.0 - alpha) * focal_loss)
     weighted_loss /= normalizer + 1e-20
-  return weighted_loss
+    weighted_focal_loss /= normalizer + 1e-20
+  return (weighted_loss + weighted_focal_loss) / 2
 
 
 class RpnScoreLoss(object):

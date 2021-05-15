@@ -99,7 +99,7 @@ def focal_loss(
                              (1.0 - alpha) * focal_loss)
     weighted_loss /= normalizer + 1e-20
     weighted_focal_loss /= normalizer + 1e-20
-  return (weighted_loss + weighted_focal_loss) / 2
+  return weighted_loss + weighted_focal_loss
 
 
 class RpnScoreLoss(object):
